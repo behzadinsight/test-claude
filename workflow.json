@@ -1,0 +1,734 @@
+{
+  "name": "Telegram → ClickUp Task Automation",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [200, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "Extract Message Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [420, 400],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "field-001",
+              "name": "messageText",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            },
+            {
+              "id": "field-002",
+              "name": "chatId",
+              "value": "={{ String($json.message.chat.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "field-003",
+              "name": "chatTitle",
+              "value": "={{ $json.message.chat.title }}",
+              "type": "string"
+            },
+            {
+              "id": "field-004",
+              "name": "senderId",
+              "value": "={{ $json.message.from.id }}",
+              "type": "number"
+            },
+            {
+              "id": "field-005",
+              "name": "senderName",
+              "value": "={{ ($json.message.from.first_name || '') + ' ' + ($json.message.from.last_name || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "field-006",
+              "name": "messageId",
+              "value": "={{ $json.message.message_id }}",
+              "type": "number"
+            },
+            {
+              "id": "field-007",
+              "name": "timestamp",
+              "value": "={{ $json.message.date }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "Lookup Project",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 400],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ============================================================\n// PROJECT MAPPING: Telegram Chat ID → ClickUp Folder\n// Fill in your actual chat IDs and folder IDs below.\n// How to find folder IDs: see SETUP.md step 3.\n// ============================================================\nconst PROJECT_MAPPING = {\n  \"-1001234567890\": { name: \"Skylife\",        folderId: \"FOLDER_ID_SKYLIFE\" },\n  \"-1009876543210\": { name: \"Insight\",        folderId: \"FOLDER_ID_INSIGHT\" },\n  \"-1001111111111\": { name: \"Homeland\",       folderId: \"FOLDER_ID_HOMELAND\" },\n  \"-1002222222222\": { name: \"Skyparadise\",    folderId: \"FOLDER_ID_SKYPARADISE\" },\n  \"-1003333333333\": { name: \"LiveElite\",      folderId: \"FOLDER_ID_LIVEELITE\" },\n  \"-1004444444444\": { name: \"The Hub\",        folderId: \"FOLDER_ID_THEHUB\" },\n  \"-1005555555555\": { name: \"Ghelichkhani\",   folderId: \"FOLDER_ID_GHELICHKHANI\" },\n  \"-1006666666666\": { name: \"Shafiee\",        folderId: \"FOLDER_ID_SHAFIEE\" },\n  \"-1007777777777\": { name: \"Qattali\",        folderId: \"FOLDER_ID_QATTALI\" },\n  \"-1008888888888\": { name: \"Dorna\",          folderId: \"FOLDER_ID_DORNA\" },\n  \"-1009999999999\": { name: \"Arta Group\",     folderId: \"FOLDER_ID_ARTAROUP\" },\n  \"-1000000000001\": { name: \"Caribbeanparadise\", folderId: \"FOLDER_ID_CARIBBEANPARADISE\" },\n};\n\nconst item = items[0].json;\nconst project = PROJECT_MAPPING[item.chatId];\n\nif (!project) {\n  return [{ json: { ...item, projectFound: false } }];\n}\n\nreturn [{ json: { ...item, projectFound: true, projectName: project.name, folderId: project.folderId } }];\n"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "Project Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [860, 400],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-001",
+              "leftValue": "={{ $json.projectFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "name": "Analyze Message (Claude)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 280],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 1024,\n  \"system\": \"You are a bilingual assistant (Persian/English) that analyzes Persian Telegram messages from project management groups. Your only job is to extract task assignment information and return strictly valid JSON with no extra text, no markdown, no code fences.\\n\\nOutput EXACTLY this JSON schema:\\n{\\n  \\\"is_task\\\": boolean,\\n  \\\"assignee_persian\\\": string | null,\\n  \\\"assignee_english\\\": string | null,\\n  \\\"title\\\": string | null,\\n  \\\"description\\\": string | null,\\n  \\\"priority\\\": \\\"urgent\\\" | \\\"high\\\" | \\\"normal\\\" | \\\"low\\\",\\n  \\\"due_date\\\": \\\"YYYY-MM-DD\\\" | null\\n}\\n\\nRules:\\n- Set is_task=true only if the message assigns a specific action to a named person\\n- assignee_persian: Persian/Farsi name as written in message\\n- assignee_english: Romanized transliteration (e.g. نوید→Navid, آرش→Arash, سارا→Sara, علی→Ali, محمد→Mohammad, رضا→Reza, فاطمه→Fatemeh, زهرا→Zahra, مهدی→Mehdi, حسین→Hossein, امیر→Amir, شهاب→Shahab, نیلوفر→Niloofar, پریسا→Parisa, سینا→Sina, کامران→Kamran, بهزاد→Behzad)\\n- title: concise English imperative sentence (max 80 chars)\\n- description: clear English summary of what needs to be done\\n- priority: infer from urgency words (فوری/ASAP=urgent, مهم/important=high, عادی=normal, کم‌اهمیت=low). Default: normal\\n- due_date: if a date or deadline is mentioned extract as YYYY-MM-DD. Use today's year ({{ $now.format('yyyy') }}) for relative dates. null if not mentioned\\n- If is_task=false, all other fields should be null except priority=\\\"normal\\\"\\n\\nExamples:\\nInput: \\\"نوید لطفاً باگ لاگین رو تا فردا درست کن فوریه\\\"\\nOutput: {\\\"is_task\\\":true,\\\"assignee_persian\\\":\\\"نوید\\\",\\\"assignee_english\\\":\\\"Navid\\\",\\\"title\\\":\\\"Fix login bug\\\",\\\"description\\\":\\\"Navid needs to fix the login bug by tomorrow. Marked as urgent.\\\",\\\"priority\\\":\\\"urgent\\\",\\\"due_date\\\":\\\"{{ $now.plus({days:1}).format('yyyy-MM-dd') }}\\\"}\\n\\nInput: \\\"جلسه فردا ساعت ۱۰ صبح\\\"\\nOutput: {\\\"is_task\\\":false,\\\"assignee_persian\\\":null,\\\"assignee_english\\\":null,\\\"title\\\":null,\\\"description\\\":null,\\\"priority\\\":\\\"normal\\\",\\\"due_date\\\":null}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify(\"Analyze this Telegram message from the '\" + $json.projectName + \"' project group:\\n\\nMessage: \" + $json.messageText + \"\\n\\nSender: \" + $json.senderName.trim() + \"\\nDate: \" + $now.format('yyyy-MM-dd')) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 280],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const upstream = $('Lookup Project').item.json;\nconst claudeResponse = items[0].json;\n\n// Extract text content from Claude API response\nlet rawText = '';\ntry {\n  rawText = claudeResponse.content[0].text;\n} catch (e) {\n  throw new Error('Claude API returned unexpected structure: ' + JSON.stringify(claudeResponse));\n}\n\n// Strip any accidental markdown code fences\nrawText = rawText.replace(/```json\\s*/gi, '').replace(/```\\s*/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(rawText);\n} catch (e) {\n  throw new Error('Claude returned non-JSON: ' + rawText);\n}\n\n// Validate required fields\nif (typeof parsed.is_task !== 'boolean') {\n  throw new Error('Claude response missing is_task field');\n}\n\nreturn [{\n  json: {\n    // Pass through upstream context\n    chatId: upstream.chatId,\n    messageId: upstream.messageId,\n    messageText: upstream.messageText,\n    senderName: upstream.senderName,\n    senderId: upstream.senderId,\n    projectName: upstream.projectName,\n    folderId: upstream.folderId,\n    timestamp: upstream.timestamp,\n    // AI extraction results\n    is_task: parsed.is_task,\n    assignee_persian: parsed.assignee_persian || null,\n    assignee_english: parsed.assignee_english || null,\n    title: parsed.title || null,\n    description: parsed.description || null,\n    priority: parsed.priority || 'normal',\n    due_date: parsed.due_date || null,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0007-0007-0007-000000000007",
+      "name": "Is Task?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1520, 280],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-002",
+              "leftValue": "={{ $json.is_task }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0008-0008-0008-000000000008",
+      "name": "Get ClickUp Members",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 160],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.clickup.com/api/v2/team/{{ $vars.CLICKUP_TEAM_ID }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CLICKUP_CREDENTIAL_ID",
+          "name": "ClickUp API Key"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0009-0009-0009-000000000009",
+      "name": "Match ClickUp User",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, 160],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ============================================================\n// Fuzzy name matching using Levenshtein distance\n// ============================================================\nfunction levenshtein(a, b) {\n  const m = a.length, n = b.length;\n  const dp = [];\n  for (let i = 0; i <= m; i++) {\n    dp[i] = [i];\n    for (let j = 1; j <= n; j++) {\n      dp[i][j] = i === 0 ? j : 0;\n    }\n  }\n  for (let j = 1; j <= n; j++) dp[0][j] = j;\n\n  for (let i = 1; i <= m; i++) {\n    for (let j = 1; j <= n; j++) {\n      if (a[i - 1] === b[j - 1]) {\n        dp[i][j] = dp[i - 1][j - 1];\n      } else {\n        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);\n      }\n    }\n  }\n  return dp[m][n];\n}\n\nfunction similarity(a, b) {\n  a = a.toLowerCase().trim();\n  b = b.toLowerCase().trim();\n  const maxLen = Math.max(a.length, b.length);\n  if (maxLen === 0) return 1.0;\n  return 1 - levenshtein(a, b) / maxLen;\n}\n\nconst upstream = $('Parse Claude Response').item.json;\nconst targetName = (upstream.assignee_english || '').toLowerCase().trim();\n\nif (!targetName) {\n  return [{ json: { ...upstream, userFound: false, matchReason: 'No assignee name extracted' } }];\n}\n\nconst teamData = items[0].json;\nconst members = teamData.team?.members || [];\n\nif (members.length === 0) {\n  throw new Error('ClickUp returned empty members list. Check CLICKUP_TEAM_ID variable.');\n}\n\nlet bestMatch = null;\nlet bestScore = 0;\nlet bestField = '';\n\nfor (const member of members) {\n  const user = member.user || {};\n  const username = String(user.username || '');\n  const email = String(user.email || '').split('@')[0];\n  // Some ClickUp workspaces store full name in username; split it\n  const nameParts = username.split(/[\\s._-]+/);\n\n  const candidates = [username, email, ...nameParts].filter(Boolean);\n\n  for (const candidate of candidates) {\n    const score = similarity(targetName, candidate);\n    if (score > bestScore) {\n      bestScore = score;\n      bestMatch = user;\n      bestField = candidate;\n    }\n  }\n}\n\nconst CONFIDENCE_THRESHOLD = 0.70;\n\nif (bestScore >= CONFIDENCE_THRESHOLD && bestMatch) {\n  return [{\n    json: {\n      ...upstream,\n      userFound: true,\n      clickupUserId: bestMatch.id,\n      clickupUserName: bestMatch.username,\n      matchScore: Math.round(bestScore * 100) / 100,\n      matchedField: bestField,\n    }\n  }];\n} else {\n  return [{\n    json: {\n      ...upstream,\n      userFound: false,\n      bestGuess: bestMatch?.username || 'none',\n      matchScore: Math.round(bestScore * 100) / 100,\n      matchReason: `Best match '${bestField}' scored ${Math.round(bestScore * 100)}% (threshold 70%)`,\n    }\n  }];\n}\n"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000010",
+      "name": "User Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2180, 160],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-003",
+              "leftValue": "={{ $json.userFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0011-0011-0011-000000000011",
+      "name": "Get Sprint Lists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 80],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.clickup.com/api/v2/folder/{{ $json.folderId }}/list",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "archived",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CLICKUP_CREDENTIAL_ID",
+          "name": "ClickUp API Key"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0012-0012-0012-000000000012",
+      "name": "Find Current Sprint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2620, 80],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ============================================================\n// Find the sprint list whose date range includes today.\n// Falls back to: latest sprint → backlog → first list.\n// Sprint name format: \"Sprint N (M/D - M/D)\" e.g. \"Sprint 3 (5/3 - 5/9)\"\n// ============================================================\nconst upstream = $('Match ClickUp User').item.json;\nconst listsData = items[0].json;\nconst lists = listsData.lists || [];\n\nconst today = new Date();\ntoday.setHours(12, 0, 0, 0); // midday to avoid TZ edge cases\nconst currentYear = today.getFullYear();\n\nfunction parseSprintDates(name) {\n  // Matches: Sprint N (M/D - M/D) or Sprint N (M/D - M/D/YYYY)\n  const re = /Sprint\\s+\\d+\\s*\\((\\d{1,2})\\/(\\d{1,2})(?:\\/(\\d{4}))?\\s*-\\s*(\\d{1,2})\\/(\\d{1,2})(?:\\/(\\d{4}))?\\)/i;\n  const m = name.match(re);\n  if (!m) return null;\n\n  const startYear = m[3] ? parseInt(m[3]) : currentYear;\n  const endYear   = m[6] ? parseInt(m[6]) : currentYear;\n\n  const start = new Date(startYear, parseInt(m[1]) - 1, parseInt(m[2]));\n  const end   = new Date(endYear,   parseInt(m[4]) - 1, parseInt(m[5]), 23, 59, 59);\n  return { start, end };\n}\n\nlet currentSprint = null;\nlet latestSprint  = null;\nlet latestStart   = null;\nlet backlogList   = null;\n\nfor (const list of lists) {\n  const name = (list.name || '').trim();\n\n  if (/^backlog$/i.test(name)) {\n    backlogList = list;\n    continue;\n  }\n\n  const dates = parseSprintDates(name);\n  if (!dates) continue;\n\n  // Is today within this sprint?\n  if (today >= dates.start && today <= dates.end) {\n    currentSprint = list;\n    break;\n  }\n\n  // Track latest sprint as fallback\n  if (!latestStart || dates.start > latestStart) {\n    latestStart  = dates.start;\n    latestSprint = list;\n  }\n}\n\nconst targetList = currentSprint || latestSprint || backlogList || lists[0];\n\nif (!targetList) {\n  throw new Error(`No lists found in ClickUp folder '${upstream.folderId}' for project '${upstream.projectName}'.`);\n}\n\nconst usedFallback = !currentSprint;\nconst fallbackReason = !currentSprint\n  ? (latestSprint ? 'No active sprint; using latest sprint' : 'No sprint found; using backlog')\n  : null;\n\nreturn [{\n  json: {\n    ...upstream,\n    listId: targetList.id,\n    listName: targetList.name,\n    usedFallback,\n    fallbackReason,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000013",
+      "name": "Build Task Body",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2840, 80],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "task-001",
+              "name": "taskName",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "task-002",
+              "name": "taskDescription",
+              "value": "={{ $json.description + '\\n\\n---\\nCreated from Telegram by ' + $json.senderName.trim() + ' on ' + $now.format('yyyy-MM-dd HH:mm') + ' UTC\\nProject: ' + $json.projectName + '\\nOriginal message: ' + $json.messageText }}",
+              "type": "string"
+            },
+            {
+              "id": "task-003",
+              "name": "priorityNum",
+              "value": "={{ {'urgent':1,'high':2,'normal':3,'low':4}[$json.priority] || 3 }}",
+              "type": "number"
+            },
+            {
+              "id": "task-004",
+              "name": "dueDateMs",
+              "value": "={{ $json.due_date ? new Date($json.due_date + 'T23:59:59Z').getTime() : null }}",
+              "type": "number"
+            },
+            {
+              "id": "task-005",
+              "name": "listId",
+              "value": "={{ $json.listId }}",
+              "type": "string"
+            },
+            {
+              "id": "task-006",
+              "name": "clickupUserId",
+              "value": "={{ $json.clickupUserId }}",
+              "type": "number"
+            },
+            {
+              "id": "task-007",
+              "name": "chatId",
+              "value": "={{ $json.chatId }}",
+              "type": "string"
+            },
+            {
+              "id": "task-008",
+              "name": "messageId",
+              "value": "={{ $json.messageId }}",
+              "type": "number"
+            },
+            {
+              "id": "task-009",
+              "name": "assignee_persian",
+              "value": "={{ $json.assignee_persian }}",
+              "type": "string"
+            },
+            {
+              "id": "task-010",
+              "name": "projectName",
+              "value": "={{ $json.projectName }}",
+              "type": "string"
+            },
+            {
+              "id": "task-011",
+              "name": "listName",
+              "value": "={{ $json.listName }}",
+              "type": "string"
+            },
+            {
+              "id": "task-012",
+              "name": "usedFallback",
+              "value": "={{ $json.usedFallback }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000014",
+      "name": "Create ClickUp Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3060, 80],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/list/{{ $json.listId }}/task",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"name\": {{ JSON.stringify($json.taskName) }},\n  \"description\": {{ JSON.stringify($json.taskDescription) }},\n  \"assignees\": [{{ $json.clickupUserId }}],\n  \"priority\": {{ $json.priorityNum }},\n  \"tags\": [\"telegram-auto\"]\n  {{ $json.dueDateMs ? ', \"due_date\": ' + $json.dueDateMs + ', \"due_date_time\": true' : '' }}\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CLICKUP_CREDENTIAL_ID",
+          "name": "ClickUp API Key"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0015-0015-0015-000000000015",
+      "name": "Send Success Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3280, 80],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Build Task Body').item.json.chatId }}",
+        "text": "=✅ تسک برای {{ $('Build Task Body').item.json.assignee_persian }} در پروژه {{ $('Build Task Body').item.json.projectName }} ثبت شد.\n\n📋 عنوان: {{ $('Build Task Body').item.json.taskName }}\n📂 لیست: {{ $('Build Task Body').item.json.listName }}\n🔗 لینک: {{ $json.url }}{{ $('Build Task Body').item.json.usedFallback ? '\\n\\n⚠️ اسپرینت فعلی یافت نشد؛ تسک در آخرین اسپرینت ثبت شد.' : '' }}",
+        "additionalFields": {
+          "replyToMessageId": "={{ $('Build Task Body').item.json.messageId }}",
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000016",
+      "name": "Send User Not Found Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2400, 340],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "=❌ خطا: کاربر «{{ $json.assignee_persian }}» در ClickUp پیدا نشد.\nنزدیک‌ترین تطابق: {{ $json.bestGuess }} ({{ Math.round(($json.matchScore || 0) * 100) }}%)\n\nلطفاً نام را بررسی کنید یا با ادمین تماس بگیرید.",
+        "additionalFields": {
+          "replyToMessageId": "={{ $json.messageId }}"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0017-0017-0017-000000000017",
+      "name": "Task Creation Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3060, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// This node is connected to the error output of Create ClickUp Task\nconst upstream = $('Build Task Body').item.json;\nconst error = items[0].json;\n\nreturn [{\n  json: {\n    chatId: upstream.chatId,\n    messageId: upstream.messageId,\n    projectName: upstream.projectName,\n    errorMessage: error.message || JSON.stringify(error),\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0018-0018-0018-000000000018",
+      "name": "Send Task Creation Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3280, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "=❌ خطا در ایجاد تسک در ClickUp.\nپروژه: {{ $json.projectName }}\nجزئیات: {{ $json.errorMessage }}\n\nلطفاً با ادمین تماس بگیرید.",
+        "additionalFields": {
+          "replyToMessageId": "={{ $json.messageId }}"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0019-0019-0019-000000000019",
+      "name": "No Action (Not a Task)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1740, 420],
+      "parameters": {}
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000020",
+      "name": "No Action (Unknown Group)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1080, 520],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message Data": {
+      "main": [
+        [
+          {
+            "node": "Lookup Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Project": {
+      "main": [
+        [
+          {
+            "node": "Project Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Project Found?": {
+      "main": [
+        [
+          {
+            "node": "Analyze Message (Claude)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Action (Unknown Group)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Message (Claude)": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Is Task?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Task?": {
+      "main": [
+        [
+          {
+            "node": "Get ClickUp Members",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Action (Not a Task)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get ClickUp Members": {
+      "main": [
+        [
+          {
+            "node": "Match ClickUp User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match ClickUp User": {
+      "main": [
+        [
+          {
+            "node": "User Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Found?": {
+      "main": [
+        [
+          {
+            "node": "Get Sprint Lists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send User Not Found Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sprint Lists": {
+      "main": [
+        [
+          {
+            "node": "Find Current Sprint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Current Sprint": {
+      "main": [
+        [
+          {
+            "node": "Build Task Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Task Body": {
+      "main": [
+        [
+          {
+            "node": "Create ClickUp Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create ClickUp Task": {
+      "main": [
+        [
+          {
+            "node": "Send Success Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Creation Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Send Task Creation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "n8nVersion": "1.0.0"
+  },
+  "id": "telegram-clickup-automation-v1",
+  "tags": [
+    {
+      "id": "tag-001",
+      "name": "telegram"
+    },
+    {
+      "id": "tag-002",
+      "name": "clickup"
+    },
+    {
+      "id": "tag-003",
+      "name": "automation"
+    }
+  ]
+}
