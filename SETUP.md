@@ -52,8 +52,7 @@ TELEGRAM_CHAT_ID  →  CLICKUP_FOLDER_ID  →  PROJECT_NAME
 | Arta Group | `-100XXXXXXXXX` | `FOLDER_ID_ARTAROUP` | |
 | Caribbeanparadise | `-100XXXXXXXXX` | `FOLDER_ID_CARIBBEANPARADISE` | |
 
-You also need to set the n8n **workflow variable** `CLICKUP_TEAM_ID`:  
-Go to **Settings → Variables** in n8n and add `CLICKUP_TEAM_ID = your_team_id`.
+No extra n8n variables needed — the workflow auto-discovers your workspace from `GET /api/v2/team`.
 
 ---
 
@@ -204,20 +203,31 @@ Adjust the threshold in the Code node if you get too many false negatives.
 
 ## Deliverable 6 — Finding Your ClickUp IDs via API
 
-### Step 1 — Get your Team ID
+> **Terminology note:** ClickUp's API calls your top-level organization a "team",
+> but in the UI it appears as your Workspace (e.g. "Insight's Workspace").
+> There are no sub-teams involved — every person lives directly in the workspace.
+> The workflow calls `GET /api/v2/team` which returns all workspace members automatically.
+
+### Step 1 — Get your Workspace ID (needed for Steps 2–3 only)
 
 ```bash
 curl -H "Authorization: pk_YOUR_TOKEN" \
      https://api.clickup.com/api/v2/team
 ```
 
-Response: look for `"teams": [{ "id": "YOUR_TEAM_ID", "name": "Insight's Workspace" }]`
+Response:
+```json
+{ "teams": [{ "id": "YOUR_WORKSPACE_ID", "name": "Insight's Workspace", "members": [...] }] }
+```
 
-### Step 2 — Get Space IDs (find "IPBs")
+Note `teams[0].id` — this is your workspace ID. The workflow does **not** need you
+to configure this anywhere; it reads members from this response automatically.
+
+### Step 2 — Get Space IDs (find the "IPBs" space)
 
 ```bash
 curl -H "Authorization: pk_YOUR_TOKEN" \
-     https://api.clickup.com/api/v2/team/YOUR_TEAM_ID/space?archived=false
+     https://api.clickup.com/api/v2/team/YOUR_WORKSPACE_ID/space?archived=false
 ```
 
 Look for `"name": "IPBs"` and note its `"id"`.
@@ -229,7 +239,7 @@ curl -H "Authorization: pk_YOUR_TOKEN" \
      https://api.clickup.com/api/v2/space/IPBS_SPACE_ID/folder?archived=false
 ```
 
-Response lists all folders. Match by `"name"` to your projects:
+Response:
 ```json
 {
   "folders": [
@@ -240,7 +250,7 @@ Response lists all folders. Match by `"name"` to your projects:
 }
 ```
 
-Copy each folder's `"id"` into the mapping table in Step 3 above.
+Copy each folder's `"id"` into the mapping table in the **`Lookup Project`** Code node.
 
 ### Step 4 — Find Telegram Chat IDs
 
@@ -250,12 +260,6 @@ Add your bot to each group, then either:
 
 Chat IDs for groups are negative numbers like `-1001234567890`.
 
-### Step 5 — Set the n8n variable
-
-In n8n: **Settings → Variables → Add Variable**
-- Name: `CLICKUP_TEAM_ID`
-- Value: your team ID from Step 1
-
 ---
 
 ## Importing the Workflow
@@ -264,10 +268,11 @@ In n8n: **Settings → Variables → Add Variable**
 2. Select `workflow.json`
 3. Open each HTTP Request node and re-assign the credentials
 4. Edit the **`Lookup Project`** Code node — fill in your chat IDs and folder IDs
-5. Set the `CLICKUP_TEAM_ID` variable (Settings → Variables)
-6. **Activate** the workflow (toggle top-right)
-7. Make sure your Telegram bot has been added as an admin to each project group  
+5. **Activate** the workflow (toggle top-right)
+6. Make sure your Telegram bot has been added as an admin to each project group  
    (it needs permission to read messages and send replies)
+
+No n8n variables need to be set — the workspace is discovered automatically.
 
 ---
 
