@@ -204,16 +204,16 @@
       "parameters": {
         "method": "GET",
         "url": "https://api.clickup.com/api/v2/team",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickUpApi",
         "options": {
           "timeout": 10000
         }
       },
       "credentials": {
-        "httpHeaderAuth": {
+        "clickUpApi": {
           "id": "CLICKUP_CREDENTIAL_ID",
-          "name": "ClickUp API Key"
+          "name": "ClickUp API"
         }
       }
     },
@@ -266,8 +266,8 @@
       "parameters": {
         "method": "GET",
         "url": "=https://api.clickup.com/api/v2/folder/{{ $json.folderId }}/list",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickUpApi",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -282,9 +282,9 @@
         }
       },
       "credentials": {
-        "httpHeaderAuth": {
+        "clickUpApi": {
           "id": "CLICKUP_CREDENTIAL_ID",
-          "name": "ClickUp API Key"
+          "name": "ClickUp API"
         }
       }
     },
@@ -390,35 +390,27 @@
     {
       "id": "a1b2c3d4-0014-0014-0014-000000000014",
       "name": "Create ClickUp Task",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
       "position": [3060, 80],
       "parameters": {
-        "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/list/{{ $json.listId }}/task",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={\n  \"name\": {{ JSON.stringify($json.taskName) }},\n  \"description\": {{ JSON.stringify($json.taskDescription) }},\n  \"assignees\": [{{ $json.clickupUserId }}],\n  \"priority\": {{ $json.priorityNum }},\n  \"tags\": [\"telegram-auto\"]\n  {{ $json.dueDateMs ? ', \"due_date\": ' + $json.dueDateMs + ', \"due_date_time\": true' : '' }}\n}",
-        "options": {
-          "timeout": 15000
+        "resource": "task",
+        "operation": "create",
+        "list": "={{ $json.listId }}",
+        "name": "={{ $json.taskName }}",
+        "additionalFields": {
+          "content": "={{ $json.taskDescription }}",
+          "priority": "={{ $json.priorityNum }}",
+          "assignees": "={{ [$json.clickupUserId] }}",
+          "dueDate": "={{ $json.dueDateMs || undefined }}",
+          "dueDatetime": true,
+          "tags": "telegram-auto"
         }
       },
       "credentials": {
-        "httpHeaderAuth": {
+        "clickUpApi": {
           "id": "CLICKUP_CREDENTIAL_ID",
-          "name": "ClickUp API Key"
+          "name": "ClickUp API"
         }
       }
     },
